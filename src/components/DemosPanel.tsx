@@ -23,7 +23,10 @@ export function DemosPanel({ api, refreshSignal }: Props) {
     setError(null)
     try {
       const r = await api.demos.list()
-      setDemos(r.demos.sort((a, b) => b.created_at - a.created_at))
+      // backend returns `files: null` for empty demo dirs (Go nil slice → JSON null),
+      // and could omit `demos`; normalise to arrays so render never touches null.
+      const demos = (r.demos ?? []).map((d) => ({ ...d, files: d.files ?? [] }))
+      setDemos(demos.sort((a, b) => b.created_at - a.created_at))
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'failed to load demos')
     } finally {

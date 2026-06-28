@@ -74,11 +74,22 @@ function serverLayerPlugin(envDefaultTarget: string): Plugin {
       })
 
       // --- 2. reverse proxy to the arm backend ---
+      // Hardened so NO backend error can crash the Vite Node process (which would
+      // otherwise drop the dev server and force a full page reload — "黑屏闪一下").
       const proxy = createProxyServer({ changeOrigin: true, ws: true })
-      proxy.on('error', (err, _req, res) => {
-        if (res && 'writeHead' in res && !res.headersSent) {
-          res.writeHead(502, { 'Content-Type': 'application/json' })
+
+      // proxy 'error' fires for both HTTP (3rd arg = ServerResponse) and WS
+      // (3rd arg = socket). Handle both shapes without throwing.
+      proxy.on('error', (err, _req, resOrSocket) => {
+        const r = resOrSocket as unknown
+        if (r && typeof (r as { writeHead?: unknown }).writeHead === 'function') {
+          const res = r as import('node:http').ServerResponse
+          if (!res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'application/json' })
+          }
           res.end(JSON.stringify({ code: 'PROXY_ERROR', message: String(err) }))
+        } else if (r && typeof (r as { destroy?: unknown }).destroy === 'function') {
+          ;(r as import('node:net').Socket).destroy() // WS: tear down the socket
         }
       })
 
@@ -88,14 +99,26 @@ function serverLayerPlugin(envDefaultTarget: string): Plugin {
         if (!req.url?.startsWith('/api')) return next()
         const t = target()
         if (!t) return next()
-        proxy.web(req, res, { target: t })
+        try {
+          proxy.web(req, res, { target: t })
+        } catch (e) {
+          if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ code: 'PROXY_ERROR', message: String(e) }))
+        }
       })
 
       // WebSocket: upgrade requests under /api → <target> (HMR upgrades untouched)
       server.httpServer?.on('upgrade', (req, socket, head) => {
         if (!req.url?.startsWith('/api')) return
+        // guard the raw socket so a client/target WS error can't bubble up uncaught
+        socket.on('error', () => socket.destroy())
         const t = target()
-        if (t) proxy.ws(req, socket, head, { target: t })
+        if (!t) return socket.destroy()
+        try {
+          proxy.ws(req, socket, head, { target: t })
+        } catch {
+          socket.destroy()
+        }
       })
     },
   }

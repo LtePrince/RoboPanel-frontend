@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { SettingsProvider } from './context/SettingsContext'
 import { AppHeader } from './components/AppHeader'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { routes } from './routes'
 
 function App() {
@@ -10,12 +11,14 @@ function App() {
         <div className="min-h-full">
           <AppHeader />
           <main className="mx-auto max-w-7xl px-5 py-6">
-            <Routes>
-              {routes.map((r) => (
-                <Route key={r.path} path={r.path} element={r.element} />
-              ))}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <ErrorBoundary>
+              <Routes>
+                {routes.map((r) => (
+                  <Route key={r.path} path={r.path} element={r.element} />
+                ))}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ErrorBoundary>
           </main>
         </div>
       </BrowserRouter>
