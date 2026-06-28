@@ -80,8 +80,8 @@ export function apiPathPrefix(realApiUrl: string): string {
   }
 }
 
-export function browserWsUrl(realApiUrl: string): string {
+export function browserWsUrl(realApiUrl: string, path = '/ws/state'): string {
   const prefix = apiPathPrefix(realApiUrl)
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${window.location.host}${prefix}/ws/state`
+  return `${proto}://${window.location.host}${prefix}${path}`
 }

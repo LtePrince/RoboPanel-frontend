@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { CameraPanel } from '../components/CameraPanel'
 import { JointStatePanel } from '../components/JointStatePanel'
 import { CartesianPanel } from '../components/CartesianPanel'
 import { BasePanel } from '../components/BasePanel'
@@ -45,6 +46,7 @@ export function RealDashboard() {
         </div>
 
         <div className="flex flex-col gap-4">
+          <CameraPanel target={target} />
           <RecordPanel api={api} onChange={() => setDemosRefresh((n) => n + 1)} />
           <DemosPanel api={api} refreshSignal={demosRefresh} />
         </div>
