@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { promises as fsp, readFileSync } from 'node:fs'
 import path from 'node:path'
-import httpProxy from 'http-proxy'
+import { createProxyServer } from 'http-proxy-3'
 
 const CONFIG_FILE = 'robopanel.settings.json'
 const CONFIG_ROUTE = '/__config'
@@ -74,7 +74,7 @@ function serverLayerPlugin(envDefaultTarget: string): Plugin {
       })
 
       // --- 2. reverse proxy to the arm backend ---
-      const proxy = httpProxy.createProxyServer({ changeOrigin: true, ws: true })
+      const proxy = createProxyServer({ changeOrigin: true, ws: true })
       proxy.on('error', (err, _req, res) => {
         if (res && 'writeHead' in res && !res.headersSent) {
           res.writeHead(502, { 'Content-Type': 'application/json' })
