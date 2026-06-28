@@ -63,6 +63,8 @@ export function createApi(prefix: string) {
 
     demos: {
       list: () => request<DemoListResp>('/demos'),
+      remove: (demo: string) =>
+        request<{ message: string }>(`/demos/${encodeURIComponent(demo)}`, { method: 'DELETE' }),
       fileUrl: (demo: string, file: string) =>
         `${base}/demos/${encodeURIComponent(demo)}/files/${encodeURIComponent(file)}`,
     },

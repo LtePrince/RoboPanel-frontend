@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Database, Download, RefreshCw, Folder, ChevronRight } from 'lucide-react'
+import {
+  Database,
+  Download,
+  RefreshCw,
+  Folder,
+  ChevronRight,
+  Trash2,
+  Check,
+  X,
+  Loader2,
+} from 'lucide-react'
 import { Card } from './ui/Card'
 import { cn } from '../lib/cn'
 import { ApiError, type ApiClient } from '../lib/api'
@@ -17,6 +27,8 @@ export function DemosPanel({ api, refreshSignal }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  const [confirmName, setConfirmName] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -37,6 +49,21 @@ export function DemosPanel({ api, refreshSignal }: Props) {
   useEffect(() => {
     load()
   }, [load, refreshSignal])
+
+  const doDelete = async (name: string) => {
+    setDeleting(name)
+    setError(null)
+    try {
+      await api.demos.remove(name)
+      setConfirmName(null)
+      if (open === name) setOpen(null)
+      await load()
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : `failed to delete ${name}`)
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   return (
     <Card
@@ -61,23 +88,66 @@ export function DemosPanel({ api, refreshSignal }: Props) {
         <ul className="flex max-h-80 flex-col gap-1.5 overflow-y-auto pr-1">
           {demos.map((demo) => {
             const isOpen = open === demo.name
+            const isConfirming = confirmName === demo.name
+            const isDeleting = deleting === demo.name
             return (
               <li key={demo.name} className="rounded-lg border border-border bg-panel-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(isOpen ? null : demo.name)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left"
-                >
-                  <ChevronRight
-                    className={cn('size-4 shrink-0 text-text/50 transition', isOpen && 'rotate-90')}
-                  />
-                  <Folder className="size-4 shrink-0 text-accent" />
-                  <span className="flex-1 truncate text-sm text-text-strong">{demo.name}</span>
-                  <span className="text-xs text-text/50">{demo.files.length} files</span>
-                  <span className="tnum hidden text-xs text-text/40 sm:inline">
-                    {timeAgo(demo.created_at)}
-                  </span>
-                </button>
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(isOpen ? null : demo.name)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  >
+                    <ChevronRight
+                      className={cn('size-4 shrink-0 text-text/50 transition', isOpen && 'rotate-90')}
+                    />
+                    <Folder className="size-4 shrink-0 text-accent" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-text-strong">
+                      {demo.name}
+                    </span>
+                    <span className="text-xs text-text/50">{demo.files.length} files</span>
+                    <span className="tnum hidden text-xs text-text/40 sm:inline">
+                      {timeAgo(demo.created_at)}
+                    </span>
+                  </button>
+
+                  {isConfirming ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span className="text-xs text-bad">删除?</span>
+                      <button
+                        type="button"
+                        title="确认删除"
+                        disabled={isDeleting}
+                        onClick={() => doDelete(demo.name)}
+                        className="rounded p-1 text-bad hover:bg-bad/10 disabled:opacity-50"
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Check className="size-4" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        title="取消"
+                        disabled={isDeleting}
+                        onClick={() => setConfirmName(null)}
+                        className="rounded p-1 text-text/60 hover:bg-panel hover:text-text-strong disabled:opacity-50"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      title="删除该 demo"
+                      onClick={() => setConfirmName(demo.name)}
+                      className="shrink-0 rounded p-1 text-text/50 hover:bg-bad/10 hover:text-bad"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </div>
 
                 {isOpen && (
                   <ul className="border-t border-border px-3 py-2">
@@ -85,10 +155,7 @@ export function DemosPanel({ api, refreshSignal }: Props) {
                       <li className="py-1 text-xs text-text/50">empty</li>
                     ) : (
                       demo.files.map((f) => (
-                        <li
-                          key={f.name}
-                          className="flex items-center gap-2 py-1 text-sm"
-                        >
+                        <li key={f.name} className="flex items-center gap-2 py-1 text-sm">
                           <span className="flex-1 truncate text-text">{f.name}</span>
                           <span className="tnum text-xs text-text/50">{formatBytes(f.size)}</span>
                           <a
