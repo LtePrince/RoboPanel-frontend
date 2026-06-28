@@ -15,21 +15,39 @@ Web panel for a robot arm, with two modes switchable in the header:
 Vite + React 19 + TypeScript + Tailwind CSS v4 + lucide-react + react-router
 (matches the blog frontend's styling stack).
 
+## Dev server layer (in `vite.config.ts`)
+
+The Vite dev server hosts two server-side middlewares (same Node process) so the
+browser only ever talks to this same-origin frontend:
+
+- **`/__config`** — reads/writes the runtime override to `robopanel.settings.json`
+  (project root, gitignored). The SPA analog of BlogManager's `manager-settings.json`
+  — the browser can't write files, so the dev server does it.
+- **`/api/*` + WS upgrade** — dynamic reverse proxy to the arm backend. The target
+  origin is read from the config file **on each request**, so changing the backend
+  in Settings takes effect **without restarting** the dev server. REST and the
+  20 Hz WebSocket are both proxied; a dead target returns `502` (no crash).
+
+This means: no CORS, and the arm only needs to be reachable from the machine
+running `npm run dev` (not from your laptop). Both middlewares are **dev-only**
+(a static prod build has no Node server).
+
 ## Config — two layers (like BlogManager)
 
 1. **Baseline defaults** — build-time `.env` (`VITE_REAL_API_URL`, `VITE_SIM_VIDEO_BASE`).
-2. **Runtime override** — edited in the **设置 (Settings)** page, saved to browser
-   **localStorage** (the SPA analog of BlogManager's `manager-settings.json`).
+   `VITE_REAL_API_URL` is also the default proxy target.
+2. **Runtime override** — edited in the **设置 (Settings)** page, persisted to
+   `robopanel.settings.json` via `/__config` (file on disk, not browser storage).
 
-Effective config = defaults overlaid with the localStorage override.
+Effective config = defaults overlaid with the file override.
 
 ```bash
 npm install
-cp .env.example .env       # optional: set baseline defaults
-npm run dev                # http://localhost:5173
+cp .env.example .env       # optional: set baseline defaults / default proxy target
+npm run dev                # http://localhost:5180
 ```
 
-You can also just open the panel and set the backend in **设置** at runtime.
+You can also just open the panel and set the arm backend in **设置** at runtime.
 
 ## Routes
 
@@ -40,7 +58,8 @@ You can also just open the panel and set the backend in **设置** at runtime.
 
 ## Real mode — backend API contract
 
-Endpoints under the configured `/api/v1` prefix, envelope `{code, message, data}`:
+The browser calls these at the same-origin path (e.g. `/api/v1/...`); the dev
+proxy forwards to the arm. Envelope `{code, message, data}`:
 
 | Method | Path | Used for |
 |---|---|---|
@@ -64,17 +83,18 @@ Endpoints under the configured `/api/v1` prefix, envelope `{code, message, data}
 ## Layout
 
 ```
+vite.config.ts                 # dev server layer: /__config writer + dynamic /api proxy
 src/
 ├── types.ts                   # mirrors backend schema
 ├── lib/
-│   ├── settings.ts            # 2-layer config (env defaults + localStorage), ws url
+│   ├── settings.ts            # 2-layer config (env defaults + JSON file); api path/ws helpers
 │   ├── api.ts                 # createApi(prefix) → typed client; ApiError
 │   ├── cn.ts                  # clsx + tailwind-merge
 │   └── format.ts              # telemetry formatting helpers
 ├── context/
-│   └── SettingsContext.tsx    # settings + real/sim mode, persisted
+│   └── SettingsContext.tsx    # settings + real/sim mode, persisted to the config file
 ├── hooks/
-│   └── useRobotState.ts       # WebSocket state stream (reconnects on url change)
+│   └── useRobotState.ts       # WebSocket state stream (reconnects on target change)
 ├── components/
 │   ├── ui/                    # Card, Stat, StatusDot
 │   ├── AppHeader.tsx          # nav (监控/设置) + 真机/仿真 toggle

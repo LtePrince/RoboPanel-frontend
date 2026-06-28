@@ -1,8 +1,9 @@
 /**
  * Two-layer config (mirrors BlogManager):
  *  1. Baseline defaults from build-time .env (VITE_*).
- *  2. Runtime overrides from browser localStorage, edited in the Settings page.
- * Effective settings = defaults merged with the stored override.
+ *  2. Runtime override persisted to a local JSON file (robopanel.settings.json)
+ *     via the Vite dev middleware at /__config — NOT browser storage.
+ * Effective config = defaults merged with the stored override.
  */
 
 export type Mode = 'real' | 'sim'
@@ -14,8 +15,14 @@ export interface Settings {
   simVideoBase: string
 }
 
-const STORAGE_KEY = 'robopanel-settings'
-const MODE_KEY = 'robopanel-mode'
+/** Shape persisted to robopanel.settings.json (override layer). */
+export interface StoredConfig {
+  realApiUrl?: string
+  simVideoBase?: string
+  mode?: Mode
+}
+
+const CONFIG_URL = '/__config'
 
 function stripTrailingSlash(s: string): string {
   return s.replace(/\/+$/, '')
@@ -31,41 +38,50 @@ export function envDefaults(): Settings {
   }
 }
 
-/** Effective settings: defaults overlaid with the localStorage override. */
-export function loadSettings(): Settings {
-  const defaults = envDefaults()
+/** Read the override layer from the local JSON file (empty if none/unavailable). */
+export async function fetchOverride(): Promise<StoredConfig> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaults
-    const stored = JSON.parse(raw) as Partial<Settings>
-    return {
-      realApiUrl: stripTrailingSlash(stored.realApiUrl ?? defaults.realApiUrl),
-      simVideoBase: stripTrailingSlash(stored.simVideoBase ?? defaults.simVideoBase),
-    }
+    const res = await fetch(CONFIG_URL)
+    if (!res.ok) return {}
+    return (await res.json()) as StoredConfig
   } catch {
-    return defaults
+    return {}
   }
 }
 
-/** Persist the runtime override layer. */
-export function saveSettings(s: Settings): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+/** Persist the override layer to the local JSON file. */
+export async function persistOverride(cfg: StoredConfig): Promise<void> {
+  await fetch(CONFIG_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  })
 }
 
-/** Clear the override layer, reverting to .env defaults. */
-export function clearSettings(): void {
-  localStorage.removeItem(STORAGE_KEY)
+/** Merge .env defaults with a stored override into effective settings. */
+export function mergeSettings(stored: StoredConfig): Settings {
+  const d = envDefaults()
+  return {
+    realApiUrl: stripTrailingSlash(stored.realApiUrl ?? d.realApiUrl),
+    simVideoBase: stripTrailingSlash(stored.simVideoBase ?? d.simVideoBase),
+  }
 }
 
-export function loadMode(): Mode {
-  return localStorage.getItem(MODE_KEY) === 'sim' ? 'sim' : 'real'
+/**
+ * With the dev proxy, the browser talks to the same-origin frontend at the
+ * backend's *path* (e.g. /api/v1); the Vite server forwards to the arm. These
+ * derive the relative REST prefix and the same-origin WS URL from realApiUrl.
+ */
+export function apiPathPrefix(realApiUrl: string): string {
+  try {
+    return stripTrailingSlash(new URL(realApiUrl).pathname) || '/api/v1'
+  } catch {
+    return '/api/v1'
+  }
 }
 
-export function saveMode(m: Mode): void {
-  localStorage.setItem(MODE_KEY, m)
-}
-
-/** Derive the WebSocket state URL from a /api/v1 HTTP prefix. */
-export function wsStateUrl(apiPrefix: string): string {
-  return `${stripTrailingSlash(apiPrefix)}/ws/state`.replace(/^http/, 'ws')
+export function browserWsUrl(realApiUrl: string): string {
+  const prefix = apiPathPrefix(realApiUrl)
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${window.location.host}${prefix}/ws/state`
 }

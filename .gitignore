@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# local runtime config (not committed)
+.env
+robopanel.settings.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

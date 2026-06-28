@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Bot, MonitorPlay, Pencil, Save, RotateCcw } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { cn } from '../lib/cn'
@@ -53,6 +53,11 @@ export function SettingsPage() {
   const [draft, setDraft] = useState<Settings>(settings)
   const [locked, setLocked] = useState({ realApiUrl: true, simVideoBase: true })
 
+  // settings hydrate asynchronously from the config file; follow them while not editing
+  useEffect(() => {
+    if (locked.realApiUrl && locked.simVideoBase) setDraft(settings)
+  }, [settings, locked.realApiUrl, locked.simVideoBase])
+
   const dirty = draft.realApiUrl !== settings.realApiUrl || draft.simVideoBase !== settings.simVideoBase
 
   const set = (key: keyof Settings, v: string) => setDraft((d) => ({ ...d, [key]: v }))
@@ -82,8 +87,8 @@ export function SettingsPage() {
 
       <Card title="真机后端" icon={Bot}>
         <LockableField
-          label="后端地址 (Real)"
-          hint="RoboPanel-backend 的完整前缀，例如 http://192.168.1.50:8080/api/v1"
+          label="机械臂后端地址（代理目标）"
+          hint="dev 服务端会把同源 /api 请求转发到这里，例如 http://192.168.1.50:8088/api/v1。改了即时生效，无需重启。"
           value={draft.realApiUrl}
           placeholder="http://host:8080/api/v1"
           locked={locked.realApiUrl}

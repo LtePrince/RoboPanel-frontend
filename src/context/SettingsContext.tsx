@@ -1,10 +1,9 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  loadSettings,
-  saveSettings,
-  clearSettings,
-  loadMode,
-  saveMode,
+  envDefaults,
+  fetchOverride,
+  persistOverride,
+  mergeSettings,
   type Settings,
   type Mode,
 } from '../lib/settings'
@@ -12,6 +11,8 @@ import {
 interface SettingsContextValue {
   settings: Settings
   mode: Mode
+  /** True until the override file has been loaded once. */
+  loaded: boolean
   /** Active backend prefix for the current mode (real → realApiUrl). */
   activeApiUrl: string
   setMode: (m: Mode) => void
@@ -22,34 +23,63 @@ interface SettingsContextValue {
 const SettingsContext = createContext<SettingsContextValue | null>(null)
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>(() => loadSettings())
-  const [mode, setModeState] = useState<Mode>(() => loadMode())
+  // start from .env defaults, then hydrate from the JSON file on mount
+  const [settings, setSettings] = useState<Settings>(() => envDefaults())
+  const [mode, setModeState] = useState<Mode>('real')
+  const [loaded, setLoaded] = useState(false)
 
-  const setMode = useCallback((m: Mode) => {
-    saveMode(m)
-    setModeState(m)
+  useEffect(() => {
+    let alive = true
+    fetchOverride().then((stored) => {
+      if (!alive) return
+      setSettings(mergeSettings(stored))
+      if (stored.mode) setModeState(stored.mode)
+      setLoaded(true)
+    })
+    return () => {
+      alive = false
+    }
   }, [])
 
-  const updateSettings = useCallback((next: Settings) => {
-    saveSettings(next)
-    setSettings(next)
+  // persist the full override (settings + mode) to the JSON file
+  const persist = useCallback((next: Settings, nextMode: Mode) => {
+    void persistOverride({ ...next, mode: nextMode })
   }, [])
+
+  const setMode = useCallback(
+    (m: Mode) => {
+      setModeState(m)
+      persist(settings, m)
+    },
+    [settings, persist],
+  )
+
+  const updateSettings = useCallback(
+    (next: Settings) => {
+      setSettings(next)
+      persist(next, mode)
+    },
+    [mode, persist],
+  )
 
   const resetSettings = useCallback(() => {
-    clearSettings()
-    setSettings(loadSettings())
+    const d = envDefaults()
+    setSettings(d)
+    setModeState('real')
+    void persistOverride({}) // empty override → back to .env defaults
   }, [])
 
   const value = useMemo<SettingsContextValue>(
     () => ({
       settings,
       mode,
+      loaded,
       activeApiUrl: settings.realApiUrl,
       setMode,
       updateSettings,
       resetSettings,
     }),
-    [settings, mode, setMode, updateSettings, resetSettings],
+    [settings, mode, loaded, setMode, updateSettings, resetSettings],
   )
 
   return <SettingsContext value={value}>{children}</SettingsContext>

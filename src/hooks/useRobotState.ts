@@ -13,10 +13,11 @@ interface UseRobotState {
 
 /**
  * Subscribes to the backend's 20 Hz state stream over WebSocket and exposes the
- * latest snapshot. Auto-reconnects with backoff, and reconnects to a new URL
- * whenever `wsUrl` changes (e.g. after editing the backend in Settings).
+ * latest snapshot. Auto-reconnects with backoff. Reconnects whenever `wsUrl` or
+ * `reconnectKey` changes — the latter lets us re-dial the proxy when the arm
+ * target is edited in Settings even though the same-origin `wsUrl` is unchanged.
  */
-export function useRobotState(wsUrl: string): UseRobotState {
+export function useRobotState(wsUrl: string, reconnectKey?: string): UseRobotState {
   const [state, setState] = useState<RobotState | null>(null)
   const [wsStatus, setWsStatus] = useState<WsStatus>('connecting')
   const [lastFrameAgo, setLastFrameAgo] = useState<number | null>(null)
@@ -72,7 +73,7 @@ export function useRobotState(wsUrl: string): UseRobotState {
       clearInterval(ageTimer)
       ws?.close()
     }
-  }, [wsUrl])
+  }, [wsUrl, reconnectKey])
 
   return { state, wsStatus, lastFrameAgo }
 }
