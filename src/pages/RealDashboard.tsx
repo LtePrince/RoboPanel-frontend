@@ -40,9 +40,9 @@ export function RealDashboard() {
           <JointStatePanel joints={state?.joint_state} connected={state?.arm_connected ?? false} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <CartesianPanel pose={state?.cartesian_state} />
-            <NavPanel nav={state?.nav_state} />
+            <NavPanel nav={state?.nav_state ?? undefined} />
           </div>
-          <BasePanel base={state?.base_state} connected={state?.base_connected ?? false} />
+          <BasePanel base={state?.base_state ?? undefined} connected={state?.base_connected ?? false} />
         </div>
 
         <div className="flex flex-col gap-4">

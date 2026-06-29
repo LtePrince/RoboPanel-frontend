@@ -9,9 +9,13 @@ interface Props {
   api: ApiClient
   /** Called after a recording starts or stops, so the demo list can refresh. */
   onChange?: () => void
+  /** Let the backend auto-assign the demo number (sim); hides the number input. */
+  autoNumber?: boolean
+  /** Enable R = start / C = stop keyboard shortcuts (sim teleop flow). */
+  keyboard?: boolean
 }
 
-export function RecordPanel({ api, onChange }: Props) {
+export function RecordPanel({ api, onChange, autoNumber, keyboard }: Props) {
   const [demoNum, setDemoNum] = useState(0)
   const [running, setRunning] = useState(false)
   const [pid, setPid] = useState<number | undefined>()
@@ -49,9 +53,10 @@ export function RecordPanel({ api, onChange }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const r = await api.record.start(demoNum)
+      const r = await api.record.start(autoNumber ? undefined : demoNum)
       setRunning(true)
       setPid(r.pid)
+      if (typeof r.demo_num === 'number') setDemoNum(r.demo_num)
       startedAt.current = Date.now()
       onChange?.()
     } catch (e) {
@@ -76,6 +81,28 @@ export function RecordPanel({ api, onChange }: Props) {
     }
   }
 
+  // R = start / C = stop shortcuts (refs avoid stale-closure reads of state)
+  const runningRef = useRef(running)
+  runningRef.current = running
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+  const startRef = useRef(start)
+  startRef.current = start
+  const stopRef = useRef(stop)
+  stopRef.current = stop
+  useEffect(() => {
+    if (!keyboard) return
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? '').toLowerCase()
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return
+      const k = e.key.toLowerCase()
+      if (k === 'r' && !runningRef.current && !busyRef.current) startRef.current()
+      else if (k === 'c' && runningRef.current && !busyRef.current) stopRef.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [keyboard])
+
   const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`
 
   return (
@@ -92,17 +119,24 @@ export function RecordPanel({ api, onChange }: Props) {
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-end gap-3">
-          <label className="flex flex-1 flex-col gap-1">
-            <span className="text-[11px] tracking-wide text-text/60 uppercase">Demo number</span>
-            <input
-              type="number"
-              min={0}
-              value={demoNum}
-              disabled={running || busy}
-              onChange={(e) => setDemoNum(Math.max(0, Number(e.target.value)))}
-              className="tnum w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-text-strong outline-none focus:border-accent disabled:opacity-50"
-            />
-          </label>
+          {autoNumber ? (
+            <div className="flex flex-1 flex-col gap-1">
+              <span className="text-[11px] tracking-wide text-text/60 uppercase">Demo</span>
+              <span className="tnum px-1 py-2 text-text-strong">demo_{demoNum}（自动编号）</span>
+            </div>
+          ) : (
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="text-[11px] tracking-wide text-text/60 uppercase">Demo number</span>
+              <input
+                type="number"
+                min={0}
+                value={demoNum}
+                disabled={running || busy}
+                onChange={(e) => setDemoNum(Math.max(0, Number(e.target.value)))}
+                className="tnum w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-text-strong outline-none focus:border-accent disabled:opacity-50"
+              />
+            </label>
+          )}
 
           {!running ? (
             <button
@@ -133,6 +167,9 @@ export function RecordPanel({ api, onChange }: Props) {
         </div>
 
         {error && <p className="text-sm text-bad">{error}</p>}
+        {keyboard && (
+          <p className="text-[11px] text-text/50">R 开始录制（自动重置）· C 停止保存（自动重置）</p>
+        )}
       </div>
     </Card>
   )

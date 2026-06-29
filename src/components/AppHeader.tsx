@@ -12,13 +12,13 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
   )
 
 const MODES: { value: Mode; label: string; icon: typeof Bot }[] = [
-  { value: 'real', label: '真机', icon: Bot },
   { value: 'sim', label: '仿真', icon: MonitorPlay },
+  { value: 'real', label: '真机', icon: Bot },
 ]
 
 export function AppHeader() {
   const { mode, setMode, settings } = useSettings()
-  const host = mode === 'real' ? settings.realApiUrl : settings.simVideoBase || '未配置'
+  const host = mode === 'sim' ? settings.simApiUrl : settings.realApiUrl
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-bg/85 backdrop-blur">

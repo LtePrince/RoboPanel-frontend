@@ -51,29 +51,34 @@ function LockableField({ label, hint, value, placeholder, locked, onUnlock, onCh
 export function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useSettings()
   const [draft, setDraft] = useState<Settings>(settings)
-  const [locked, setLocked] = useState({ realApiUrl: true, simVideoBase: true })
+  const [locked, setLocked] = useState({ realApiUrl: true, simApiUrl: true, simVideoBase: true })
+  const allLocked = locked.realApiUrl && locked.simApiUrl && locked.simVideoBase
 
   // settings hydrate asynchronously from the config file; follow them while not editing
   useEffect(() => {
-    if (locked.realApiUrl && locked.simVideoBase) setDraft(settings)
-  }, [settings, locked.realApiUrl, locked.simVideoBase])
+    if (allLocked) setDraft(settings)
+  }, [settings, allLocked])
 
-  const dirty = draft.realApiUrl !== settings.realApiUrl || draft.simVideoBase !== settings.simVideoBase
+  const dirty =
+    draft.realApiUrl !== settings.realApiUrl ||
+    draft.simApiUrl !== settings.simApiUrl ||
+    draft.simVideoBase !== settings.simVideoBase
 
   const set = (key: keyof Settings, v: string) => setDraft((d) => ({ ...d, [key]: v }))
 
   const save = () => {
     updateSettings({
       realApiUrl: draft.realApiUrl.trim(),
+      simApiUrl: draft.simApiUrl.trim(),
       simVideoBase: draft.simVideoBase.trim(),
     })
-    setLocked({ realApiUrl: true, simVideoBase: true })
+    setLocked({ realApiUrl: true, simApiUrl: true, simVideoBase: true })
   }
 
   const reset = () => {
     resetSettings()
     setDraft(envDefaults())
-    setLocked({ realApiUrl: true, simVideoBase: true })
+    setLocked({ realApiUrl: true, simApiUrl: true, simVideoBase: true })
   }
 
   return (
@@ -98,15 +103,26 @@ export function SettingsPage() {
       </Card>
 
       <Card title="仿真" icon={MonitorPlay}>
+        <div className="flex flex-col gap-5">
         <LockableField
-          label="仿真视频来源 (Sim)"
-          hint="仿真视频的来源地址（连接方式待定，可留空，当前支持本地文件预览）"
+          label="仿真后端地址（代理目标）"
+          hint="RoboPanel-Simbackend 的 /api/v1，例如 http://localhost:9000/api/v1。仿真模式下同源 /api 转发到这里。"
+          value={draft.simApiUrl}
+          placeholder="http://localhost:9000/api/v1"
+          locked={locked.simApiUrl}
+          onUnlock={() => setLocked((l) => ({ ...l, simApiUrl: false }))}
+          onChange={(v) => set('simApiUrl', v)}
+        />
+        <LockableField
+          label="仿真视频目录（本地路径）"
+          hint="dev 服务端从该目录读取并播放视频，默认 FastWAM 评估结果目录。留空则用 .env 默认值。"
           value={draft.simVideoBase}
-          placeholder="（待接入，可留空）"
+          placeholder="/home/ziyaowang/Alvin/WAM/FastWAM/evaluate_results"
           locked={locked.simVideoBase}
           onUnlock={() => setLocked((l) => ({ ...l, simVideoBase: false }))}
           onChange={(v) => set('simVideoBase', v)}
         />
+        </div>
       </Card>
 
       <div className="flex items-center justify-between">

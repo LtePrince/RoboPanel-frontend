@@ -4,6 +4,8 @@ import type {
   RecordStartResp,
   RecordStatusResp,
   DemoListResp,
+  RobotInfo,
+  SimTasks,
 } from '../types'
 
 /** Thrown when the backend returns a non-OK code or a transport error occurs. */
@@ -50,12 +52,24 @@ export function createApi(prefix: string) {
   return {
     baseUrl: base,
     getState: () => request<RobotState>('/robot/state'),
+    getInfo: () => request<RobotInfo>('/robot/info'),
+
+    sim: {
+      tasks: () => request<SimTasks>('/sim/tasks'),
+      load: (suite: string, taskId: number) =>
+        request<{ suite: string; task_id: number }>('/sim/load', {
+          method: 'POST',
+          body: JSON.stringify({ suite, task_id: taskId }),
+        }),
+      reset: () => request<{ ok: boolean }>('/control/reset', { method: 'POST' }),
+    },
 
     record: {
-      start: (demoNum: number) =>
+      // demoNum optional: the sim backend auto-assigns the next index when omitted
+      start: (demoNum?: number) =>
         request<RecordStartResp>('/record/start', {
           method: 'POST',
-          body: JSON.stringify({ demo_num: demoNum }),
+          body: JSON.stringify(demoNum === undefined ? {} : { demo_num: demoNum }),
         }),
       stop: () => request<{ message: string }>('/record/stop', { method: 'POST' }),
       status: () => request<RecordStatusResp>('/record/status'),

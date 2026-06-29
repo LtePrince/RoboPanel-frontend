@@ -25,7 +25,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null)
 export function SettingsProvider({ children }: { children: ReactNode }) {
   // start from .env defaults, then hydrate from the JSON file on mount
   const [settings, setSettings] = useState<Settings>(() => envDefaults())
-  const [mode, setModeState] = useState<Mode>('real')
+  const [mode, setModeState] = useState<Mode>('sim') // default to sim (prioritise showing it)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const resetSettings = useCallback(() => {
     const d = envDefaults()
     setSettings(d)
-    setModeState('real')
+    setModeState('sim')
     void persistOverride({}) // empty override → back to .env defaults
   }, [])
 
@@ -74,7 +74,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       settings,
       mode,
       loaded,
-      activeApiUrl: settings.realApiUrl,
+      activeApiUrl: mode === 'sim' ? settings.simApiUrl : settings.realApiUrl,
       setMode,
       updateSettings,
       resetSettings,

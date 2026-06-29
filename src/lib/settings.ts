@@ -11,13 +11,16 @@ export type Mode = 'real' | 'sim'
 export interface Settings {
   /** Real robot backend, full prefix incl. /api/v1 (e.g. http://arm:8080/api/v1). */
   realApiUrl: string
-  /** Simulation video source base URL (connection TBD; may be empty). */
+  /** Sim backend (RoboPanel-Simbackend), full prefix incl. /api/v1. */
+  simApiUrl: string
+  /** Simulation video directory (local path; FastWAM eval results by default). */
   simVideoBase: string
 }
 
 /** Shape persisted to robopanel.settings.json (override layer). */
 export interface StoredConfig {
   realApiUrl?: string
+  simApiUrl?: string
   simVideoBase?: string
   mode?: Mode
 }
@@ -33,6 +36,9 @@ export function envDefaults(): Settings {
   return {
     realApiUrl: stripTrailingSlash(
       import.meta.env.VITE_REAL_API_URL ?? 'http://localhost:8080/api/v1',
+    ),
+    simApiUrl: stripTrailingSlash(
+      import.meta.env.VITE_SIM_API_URL ?? 'http://localhost:9000/api/v1',
     ),
     simVideoBase: stripTrailingSlash(import.meta.env.VITE_SIM_VIDEO_BASE ?? ''),
   }
@@ -63,6 +69,7 @@ export function mergeSettings(stored: StoredConfig): Settings {
   const d = envDefaults()
   return {
     realApiUrl: stripTrailingSlash(stored.realApiUrl ?? d.realApiUrl),
+    simApiUrl: stripTrailingSlash(stored.simApiUrl ?? d.simApiUrl),
     simVideoBase: stripTrailingSlash(stored.simVideoBase ?? d.simVideoBase),
   }
 }
